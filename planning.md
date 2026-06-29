@@ -1,17 +1,13 @@
 
-(1) submission flow — POST /submit → signal 1 → signal 2 → confidence scoring → transparency label → audit log → response
 
-(2) appeal flow — POST /appeal → status update → audit log → response
-
-
-Detection signals: 
+## Detection signals: 
 <!--What are your 2+ signals? What does each one measure? What does each signal's output look like (a score between 0–1? a binary flag?), and how will you combine them into a single confidence score? -->
 - LLM-based classification (Groq): ask the model to assess whether text reads as human or AI-generated. Captures semantic and stylistic coherence holistically.
 - Stylometric heuristics: measurable statistical properties that differ between human and AI writing — sentence length variance, type-token ratio (vocabulary diversity), punctuation density, or average sentence complexity. AI text tends to be more uniform; human writing is more variable. Computable in pure Python.
 
 These two signals are complementary: one is semantic, one is structural. Blending them is more informative than either alone because they capture different failure modes — the LLM classifier may miss stylistically unusual AI text; the heuristics may miss semantically coherent but structurally normal AI text.
 
-Uncertainty representation: 
+## Uncertainty representation: 
 <!--What does a confidence score of 0.6 mean to your system? How will you map raw signal outputs to a calibrated score? What threshold separates "likely AI" from "uncertain" from "likely human"?-->
 Each signal produces a score in [0, 1] where 1 = maximally AI-like:
 - LLM classifier (Groq): the model returns a structured response with an explicit probability or label ("ai"/"human") which is mapped to a 0–1 float. Weight: 0.6 (semantic signal is more informative for holistic judgment).
@@ -28,7 +24,7 @@ Thresholds:
 
 These bounds keep the uncertain band wide enough to avoid false high-confidence calls on borderline content (e.g., heavily templated human writing or lightly edited AI output).
 
-Transparency label design: 
+## Transparency label design: 
 <!--What exact text will the label show for a high-confidence AI result? A high-confidence human result? An uncertain result? Write out the three label variants now, before you build the UI. -->
 Three label variants keyed to the confidence thresholds in the uncertainty representation section:
 
@@ -38,9 +34,92 @@ Three label variants keyed to the confidence thresholds in the uncertainty repre
 
 {score} is displayed as a percentage (e.g., "82%") so it is readable to non-technical users. The appeal prompt appears only on the "Likely AI" label since that is the only outcome with a meaningful consequence for the submitter.
 
-Appeals workflow: 
+## Appeals workflow: 
 <!--Who can submit an appeal? What information do they provide? What does the system do when an appeal is received — what status changes, what gets logged? What would a human reviewer see when they open the appeal queue? -->
+Anyone who received a "Likely AI" label can submit an appeal via POST /appeal, providing their submission ID and an optional explanation. The submission status changes from "flagged" to "under_review" and the appeal is written to the audit log. A human reviewer sees the original text, the confidence score, and the appellant's explanation.
 
 <!--Anticipated edge cases: What types of content will your system handle poorly? Name at least two specific scenarios — not generic risks like "inaccurate detection," but specific cases like "a poem with heavy use of repetition and simple vocabulary that your heuristics might score as AI-generated."-->
 
+## Architecture
 
+(1) Submission flow
+
+```
+ Client
+   │
+   │  POST /submit {text}
+   ▼
+┌──────────┐     ┌─────────────────────┐     ┌──────────────────────┐
+│  /submit │────▶│  LLM Classifier     │     │ Stylometric          │
+│ endpoint │     │  (Groq)             │     │ Heuristics           │
+└──────────┘     │  → llm_score [0,1]  │     │ → style_score [0,1]  │
+      │          └─────────────────────┘     └──────────────────────┘
+      │                    │                            │
+      │            (run in parallel)                    │
+      │                    └──────────┬─────────────────┘
+      │                               ▼
+      │                    ┌─────────────────────┐
+      │                    │  Confidence Scoring  │
+      │                    │  0.6×llm +0.4×style  │
+      │                    │  → score [0,1]       │
+      │                    └─────────────────────┘
+      │                               │
+      │                               ▼
+      │                    ┌─────────────────────┐
+      │                    │ Transparency Label   │
+      │                    │ likely AI / uncertain│
+      │                    │ / likely human       │
+      │                    └─────────────────────┘
+      │                               │
+      │                               ▼
+      │                    ┌─────────────────────┐
+      └───────────────────▶│    Audit Log         │
+                           └─────────────────────┘
+                                      │
+                                      ▼
+                                  Response
+                           {label, score, submission_id}
+```
+
+(2) Appeal flow
+
+```
+ Client
+   │
+   │  POST /appeal {submission_id, explanation?}
+   ▼
+┌──────────┐
+│ /appeal  │
+│ endpoint │
+└──────────┘
+      │
+      ▼
+┌─────────────────────────────┐
+│ Status Update               │
+│ "flagged" → "under_review"  │
+└─────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────┐
+│ Audit Log                   │
+│ {submission_id, explanation,│
+│  timestamp, status}         │
+└─────────────────────────────┘
+      │
+      ▼
+  Response
+  {status: "under_review"}
+```
+
+
+
+## AI Tool Plan
+
+M3 (submission endpoint + first signal): 
+<!--Which spec sections you'll provide to the AI tool (hint: your detection signals section + the diagram), what you'll ask it to generate (Flask app skeleton + the first signal function), and how you'll verify the output (test with a few inputs directly before wiring into the endpoint). -->
+
+M4 (second signal + confidence scoring): 
+<!--Which spec sections you'll provide (detection signals + uncertainty representation + diagram), what you'll ask for (second signal function + scoring logic), and what you'll check (do scores vary meaningfully between clearly AI and clearly human text?). -->
+
+M5 (production layer): 
+<!--Which spec sections you'll provide (label variants + appeals workflow + diagram), what you'll ask for (label generation logic + the /appeal endpoint), and how you'll verify (test all three label variants are reachable and that an appeal updates status correctly). -->
