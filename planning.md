@@ -117,9 +117,18 @@ Anyone who received a "Likely AI" label can submit an appeal via POST /appeal, p
 
 M3 (submission endpoint + first signal): 
 <!--Which spec sections you'll provide to the AI tool (hint: your detection signals section + the diagram), what you'll ask it to generate (Flask app skeleton + the first signal function), and how you'll verify the output (test with a few inputs directly before wiring into the endpoint). -->
+Provide: Detection signals section + submission flow diagram.
+Ask for: A Flask app skeleton with a POST /submit endpoint and the LLM-based classifier function (Groq call → returns llm_score as a float in [0,1]).
+Verify: Call the endpoint directly with three inputs — a clearly AI-generated paragraph, a clearly human-written paragraph, and a short ambiguous sentence — and confirm llm_score varies in the expected direction before wiring it into confidence scoring.
 
 M4 (second signal + confidence scoring): 
 <!--Which spec sections you'll provide (detection signals + uncertainty representation + diagram), what you'll ask for (second signal function + scoring logic), and what you'll check (do scores vary meaningfully between clearly AI and clearly human text?). -->
+Provide: Detection signals section + uncertainty representation section + submission flow diagram.
+Ask for: The stylometric heuristics function (sentence length variance, type-token ratio, punctuation density → normalized style_score in [0,1]) and the confidence scoring function (final_confidence = 0.6 × llm_score + 0.4 × style_score).
+Verify: Run the same three test inputs from M3 through the full pipeline and confirm final_confidence lands in the expected bucket — clearly AI text scores ≥ 0.75, clearly human text scores < 0.40, and the ambiguous input falls in the 0.40–0.74 uncertain band.
 
 M5 (production layer): 
 <!--Which spec sections you'll provide (label variants + appeals workflow + diagram), what you'll ask for (label generation logic + the /appeal endpoint), and how you'll verify (test all three label variants are reachable and that an appeal updates status correctly). -->
+Provide: Transparency label design section + appeals workflow section + both flow diagrams.
+Ask for: Label generation logic (maps final_confidence to one of the three label strings with score formatted as a percentage) and the POST /appeal endpoint (validates submission_id exists, updates status to "under_review", writes to audit log, returns status).
+Verify: Submit three inputs crafted to hit each confidence bucket and confirm each returns the correct label text. Then submit an appeal for the "Likely AI" result and confirm the status in the audit log changes from "flagged" to "under_review".
