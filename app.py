@@ -1,12 +1,18 @@
+import os
 import re
 import uuid
 import json
 import statistics
 from datetime import datetime, timezone
 from pathlib import Path
+from dotenv import load_dotenv
+from groq import Groq
 from flask import Flask, request, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
+load_dotenv()
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 AUDIT_LOG = Path("audit_log.jsonl")
 
@@ -34,6 +40,27 @@ def stylometric_score(text: str) -> float:
         punct_score = 0.5
 
     return round((slv_score + ttr_score + punct_score) / 3, 4)
+
+def llm_classify(text: str) -> float:
+    response = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are an AI-generated text detector. "
+                    "Given a passage of text, estimate the probability it was written by an AI (not a human). "
+                    "Respond with only a JSON object: {\"ai_probability\": <float between 0.0 and 1.0>}. "
+                    "1.0 = certainly AI-generated, 0.0 = certainly human-written."
+                ),
+            },
+            {"role": "user", "content": text},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0,
+    )
+    result = json.loads(response.choices[0].message.content)
+    return round(float(result.get("ai_probability", 0.5)), 4)
 
 def confidence_score(llm_score: float, style_score: float) -> float:
     return round(0.6 * llm_score + 0.4 * style_score, 4)
@@ -71,7 +98,7 @@ def submit():
     creator_id = data.get("creator_id")
 
     content_id = str(uuid.uuid4())
-    llm_score = 0.5        # placeholder — replace with Groq classifier in M5
+    llm_score = llm_classify(text)
     style_score = stylometric_score(text)
     confidence = confidence_score(llm_score, style_score)
     attribution = attribution_from_confidence(confidence)
