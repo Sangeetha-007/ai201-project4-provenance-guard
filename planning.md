@@ -134,5 +134,14 @@ Ask for: Label generation logic (maps final_confidence to one of the three label
 Verify: Submit three inputs crafted to hit each confidence bucket and confirm each returns the correct label text. Then submit an appeal for the "Likely AI" result and confirm the status in the audit log changes from "flagged" to "under_review".
 
 
+Milestone 3:
+
+![Flask](images/get.png)
+
 
 Milestone 4:
+
+![testinput1](images/AI_generated.png)
+![testinput2](images/human_written.png)
+![testinput3](images/borderline.png)
+![testinput4](images/borderline2.png)
