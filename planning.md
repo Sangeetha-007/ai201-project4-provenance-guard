@@ -132,3 +132,7 @@ M5 (production layer):
 Provide: Transparency label design section + appeals workflow section + both flow diagrams.
 Ask for: Label generation logic (maps final_confidence to one of the three label strings with score formatted as a percentage) and the POST /appeal endpoint (validates submission_id exists, updates status to "under_review", writes to audit log, returns status).
 Verify: Submit three inputs crafted to hit each confidence bucket and confirm each returns the correct label text. Then submit an appeal for the "Likely AI" result and confirm the status in the audit log changes from "flagged" to "under_review".
+
+
+
+Milestone 4:
