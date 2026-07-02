@@ -10,16 +10,17 @@ These two signals are complementary: one is semantic, one is structural. Blendin
 ## Uncertainty representation: 
 <!--What does a confidence score of 0.6 mean to your system? How will you map raw signal outputs to a calibrated score? What threshold separates "likely AI" from "uncertain" from "likely human"?-->
 Each signal produces a score in [0, 1] where 1 = maximally AI-like:
-- LLM classifier (Groq): the model returns a structured response with an explicit probability or label ("ai"/"human") which is mapped to a 0–1 float. Weight: 0.6 (semantic signal is more informative for holistic judgment).
-- Stylometric heuristics: normalized composite of sentence-length variance, type-token ratio, and punctuation density. Low variance + high uniformity → score near 1. Weight: 0.4.
+- LLM classifier (Groq): the model returns a structured response with an explicit probability or label ("ai"/"human") which is mapped to a 0–1 float. Weight: 0.8 (dominant signal — empirically stronger discriminator).
+- Stylometric heuristics: normalized composite of sentence-length variance, type-token ratio, and punctuation density. Low variance + high uniformity → score near 1. Weight: 0.2.
 
-Final confidence = 0.6 × llm_score + 0.4 × stylometric_score.
+Final confidence = 0.8 × llm_score + 0.2 × stylometric_score.
 
 A score of 0.6 means the combined evidence leans AI but is not strong enough to be definitive — both signals partially agree, or one is neutral while the other is positive.
 
 Thresholds:
-- ≥ 0.75 → "likely AI"
-- 0.40–0.74 → "uncertain"
+<!-- original thresholds (pre-calibration): ≥ 0.75 likely AI | 0.40–0.74 uncertain | < 0.40 likely human -->
+- ≥ 0.70 → "likely AI"
+- 0.40–0.69 → "uncertain"
 - < 0.40 → "likely human"
 
 These bounds keep the uncertain band wide enough to avoid false high-confidence calls on borderline content (e.g., heavily templated human writing or lightly edited AI output).
